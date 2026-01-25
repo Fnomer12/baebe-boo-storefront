@@ -1,65 +1,175 @@
+// app/page.tsx
 import Image from "next/image";
+import Link from "next/link";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import HeroRotatingTitle from "@/components/HeroRotatingTitle";
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="min-h-screen bg-white text-black">
+      <Navbar />
+
+      {/* Hero */}
+      <section className="pt-24 sm:pt-28 md:pt-32">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="grid gap-10 md:gap-12 md:grid-cols-2 items-center">
+            {/* Left */}
+            <div className="max-w-2xl">
+              <HeroRotatingTitle />
+
+              {/* Ensure this paragraph always has space and stays visible */}
+              <p className="mt-6 sm:mt-7 max-w-xl text-black/70 leading-relaxed text-sm sm:text-base">
+                Clean, premium essentials — thoughtfully curated for everyday
+                care.
+              </p>
+            </div>
+
+            {/* Right CEO card */}
+            <div className="flex justify-center md:justify-end">
+              <div className="w-full max-w-md rounded-3xl border border-black/10 bg-white p-3 sm:p-4 shadow-sm">
+                <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-black/[0.03]">
+                  <Image
+                    src="/mercy.jpg"
+                    alt="Mercy Doku"
+                    fill
+                    className="object-cover"
+                    priority
+                    sizes="(max-width: 768px) 90vw, 420px"
+                  />
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-black">
+                      Mercy Doku
+                    </div>
+                    <p className="mt-1 text-sm text-black/70 leading-snug">
+                      Quality baby essentials, thoughtfully curated.
+                    </p>
+                  </div>
+
+                  <div className="shrink-0 rounded-full border border-black/10 bg-black/[0.02] px-3 py-1 text-xs font-medium text-black/70">
+                    Founder
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="mt-10 sm:mt-12 border-t border-black/10" />
+
+          {/* VIDEO SECTION (clickable to /shop) */}
+          <section className="pt-8 sm:pt-10 pb-10" id="categories">
+            <Link
+              href="/shop"
+              className="group relative block overflow-hidden rounded-3xl border border-black/10 shadow-sm hover:shadow-md transition"
+              aria-label="Go to shop"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+              {/* More responsive heights */}
+              <div className="relative h-[320px] sm:h-[380px] md:h-[520px]">
+                <video
+                  className="absolute inset-0 h-full w-full object-cover"
+                  src="/videos/baebeboo.mp4"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                />
+
+                {/* Overlays */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition" />
+
+                {/* Content */}
+                <div className="relative z-10 h-full flex items-end">
+                  <div className="p-5 sm:p-6 md:p-10">
+                    <h2 className="text-xl sm:text-2xl md:text-4xl font-semibold tracking-tight text-white">
+                      Shop the collection
+                    </h2>
+                    <p className="mt-2 max-w-xl text-xs sm:text-sm md:text-base text-white/80">
+                      Tap to browse our full range of baby essentials — designed
+                      with comfort, care, and simplicity in mind.
+                    </p>
+
+                    {/* Do NOT nest Link inside Link */}
+                    <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-white/90 group-hover:text-white transition">
+                      Explore <span className="text-lg">→</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          </section>
+
+          {/* About */}
+          <section
+            id="about"
+            className="scroll-mt-24 sm:scroll-mt-28 md:scroll-mt-32 py-10 sm:py-12"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <div className="grid gap-6 md:grid-cols-2 items-start">
+              <div>
+                <h2 className="text-2xl md:text-3xl font-semibold tracking-tight">
+                  About Baebe Boo
+                </h2>
+
+                <p className="mt-3 text-black/70 leading-relaxed">
+                  Baebe Boo is a modern baby essentials store built for parents
+                  who value simplicity, quality, and trusted products. We focus
+                  on everyday items you actually need — carefully selected for
+                  comfort, safety, and practicality.
+                </p>
+
+                <p className="mt-4 text-black/70 leading-relaxed">
+                  Browse freely and shop with confidence. We support payments in
+                  Ghana via Mobile Money and card.
+                </p>
+              </div>
+
+              {/* About highlights card (no Shop now button) */}
+              <div className="rounded-3xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
+                <div className="text-sm font-semibold">What we prioritize</div>
+
+                <div className="mt-4 space-y-3 text-sm text-black/70">
+                  <div className="flex gap-3">
+                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-black/30" />
+                    <div>
+                      <span className="font-medium text-black/80">
+                        Quality-first
+                      </span>{" "}
+                      selections designed for daily use.
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-black/30" />
+                    <div>
+                      <span className="font-medium text-black/80">
+                        Clear browsing
+                      </span>{" "}
+                      so you can find what you need fast.
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-black/30" />
+                    <div>
+                      <span className="font-medium text-black/80">
+                        Smooth checkout
+                      </span>{" "}
+                      with MoMo + card support.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
-      </main>
-    </div>
+      </section>
+
+      <Footer />
+    </main>
   );
 }

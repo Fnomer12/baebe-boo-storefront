@@ -1,26 +1,113 @@
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
+/* your custom css below */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --bg: #ffffff;
+  --fg: #0b0b0b;
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-brand: "Cormorant Garamond", serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+}
+/* ===============================
+   Dynamic Pink / Blue Swirl
+   =============================== */
+
+.swirl {
+  position: absolute;
+  inset: -40%;
+  background:
+    conic-gradient(
+      from 0deg,
+      rgba(255, 120, 200, 0.45),
+      rgba(120, 150, 255, 0.45),
+      rgba(255, 120, 200, 0.45)
+    ),
+    radial-gradient(
+      circle at 30% 40%,
+      rgba(255, 180, 220, 0.6),
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at 70% 60%,
+      rgba(120, 170, 255, 0.55),
+      transparent 55%
+    );
+  filter: blur(60px) saturate(1.15);
+  mix-blend-mode: multiply;
+  will-change: transform, filter;
+}
+
+.swirl-1 {
+  animation: swirlMoveA 28s ease-in-out infinite;
+  opacity: 0.55;
+}
+
+.swirl-2 {
+  animation: swirlMoveB 40s ease-in-out infinite;
+  opacity: 0.45;
+}
+
+.swirl-3 {
+  animation: swirlMoveC 55s linear infinite;
+  opacity: 0.35;
+}
+
+/* ===============================
+   Animations
+   =============================== */
+
+@keyframes swirlMoveA {
+  0% {
+    transform: rotate(0deg) scale(1.05) translateX(0);
+  }
+  50% {
+    transform: rotate(120deg) scale(1.15) translateX(6%);
+  }
+  100% {
+    transform: rotate(360deg) scale(1.05) translateX(0);
+  }
+}
+
+@keyframes swirlMoveB {
+  0% {
+    transform: rotate(360deg) scale(1.1) translateY(0);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.25) translateY(-6%);
+  }
+  100% {
+    transform: rotate(0deg) scale(1.1) translateY(0);
+  }
+}
+
+@keyframes swirlMoveC {
+  0% {
+    transform: rotate(0deg) scale(1.2);
+  }
+  100% {
+    transform: rotate(-360deg) scale(1.2);
+  }
+}
+
+/* ===============================
+   Accessibility
+   =============================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .swirl {
+    animation: none !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  svg animate,
+  svg animateTransform {
+    display: none !important;
+  }
 }
