@@ -8,6 +8,9 @@ type CartItem = {
   qty?: number | null;
 };
 
+// ✅ what our stock/deletion logic expects later
+type PurchaseItem = { product_id: string; qty: number };
+
 function normalizeGhanaPhone(raw: string) {
   // returns +233XXXXXXXXX (9 digits after +233)
   const s = String(raw || "").trim();
@@ -47,6 +50,16 @@ function calcTotalGhs(items: CartItem[]) {
   }, 0);
 }
 
+// ✅ convert cart items to the minimal safe format we store in Paystack metadata
+function toPurchaseItems(items: CartItem[]): PurchaseItem[] {
+  return (items ?? [])
+    .map((i) => ({
+      product_id: String(i?.id || "").trim(),
+      qty: Math.max(1, Number(i?.qty ?? 1)),
+    }))
+    .filter((x) => x.product_id.length > 0);
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
@@ -58,6 +71,15 @@ export async function POST(req: Request) {
     if (!email || !Array.isArray(items) || items.length === 0 || !phoneRaw) {
       return NextResponse.json(
         { error: "Missing required fields: email, items, phone" },
+        { status: 400 }
+      );
+    }
+
+    // ✅ this is what the webhook/order-complete route will use later
+    const purchaseItems = toPurchaseItems(items);
+    if (purchaseItems.length === 0) {
+      return NextResponse.json(
+        { error: "Cart items missing product ids" },
         { status: 400 }
       );
     }
@@ -85,8 +107,6 @@ export async function POST(req: Request) {
     }
 
     // ✅ IMPORTANT: MoMo-first, stable path
-    // - Force Mobile Money only (users want MoMo)
-    // - Do NOT pass `mobile_money` object (Paystack infers and collects as needed)
     const initPayload: Record<string, any> = {
       email,
       amount,
@@ -94,7 +114,8 @@ export async function POST(req: Request) {
       channels: ["mobile_money"],
       metadata: {
         phone,
-        items,
+        // ✅ store only product_id + qty (NOT price/name)
+        items: purchaseItems,
         source: "baebe-boo-storefront",
       },
     };
@@ -126,7 +147,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ Return exactly what cart/page.tsx expects
     return NextResponse.json({
       authorization_url: data.data.authorization_url,
       reference: data.data.reference,

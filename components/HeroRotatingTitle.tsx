@@ -21,17 +21,20 @@ export default function HeroRotatingTitle() {
     "font-semibold tracking-tight leading-[0.95] text-[clamp(44px,6vw,84px)]";
 
   return (
-    <div className="relative">
-      {/* 1) SIZER: reserves the correct height (use the LONGEST title) */}
-      <h1 className={`${headlineClass} opacity-0 pointer-events-none select-none`}>
+    <div className="relative" suppressHydrationWarning>
+      {/* 1) SIZER: reserves the correct height */}
+      <h1
+        className={`${headlineClass} opacity-0 pointer-events-none select-none`}
+      >
         {slides.reduce((a, b) => (a.length > b.length ? a : b))}
       </h1>
 
-      {/* 2) ACTUAL ROTATING TEXT: sits exactly on top of the reserved space */}
+      {/* 2) ROTATING TEXT */}
       <div className="absolute inset-0">
         {slides.map((text, i) => (
           <span
             key={text}
+            aria-hidden={index !== i}
             className={[
               "absolute inset-0",
               headlineClass,
@@ -44,7 +47,7 @@ export default function HeroRotatingTitle() {
         ))}
       </div>
 
-      {/* 3) Constant line ALWAYS below (never overlaps now) */}
+      {/* 3) Constant line below */}
       <div className="mt-2 text-xs sm:text-sm text-black/60">
         Ghana • MoMo + Card via Paystack
       </div>

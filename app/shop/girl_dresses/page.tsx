@@ -1,4 +1,3 @@
-// app/shop/clothes/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -12,7 +11,7 @@ type Product = {
   name: string | null;
   price_ghs: number | null;
   category: string | null;
-  image_url: string | null; // store: "onesie.jpg" OR "clothes/onesie.jpg" OR full URL
+  image_url: string | null; // "onesie.jpg" OR "girl_dresses/onesie.jpg" OR full URL
   created_at?: string | null;
   is_active?: boolean | null;
   stock?: number | null;
@@ -76,14 +75,17 @@ function resolveProductImage(image_url: string | null) {
   return pub || PLACEHOLDER;
 }
 
-export default function ClothesPage() {
+export default function GirlDressesPage() {
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
   const { addItem, totalItems, hydrated } = useCart();
 
-  const titles = ["Boys Clothes Store", "Baebe Boo Storefront"] as const;
+  // ✅ Only change the category key here
+  const CATEGORY_KEY = "girl_dresses";
+
+  const titles = ["Girls Dresses Store", "Baebe Boo Storefront"] as const;
   const [titleIndex, setTitleIndex] = useState(0);
 
   const formatter = useMemo(
@@ -103,7 +105,7 @@ export default function ClothesPage() {
     const { data, error } = await supabase
       .from("products")
       .select("id,name,price_ghs,category,image_url,created_at,is_active,stock")
-      .eq("category", "clothes")
+      .eq("category", CATEGORY_KEY)
       .eq("is_active", true)
       .order("created_at", { ascending: false });
 
@@ -125,42 +127,50 @@ export default function ClothesPage() {
       setTitleIndex((i) => (i + 1) % titles.length);
     }, 3000);
 
+    // ✅ Realtime: same pattern, just filtering to girl_dresses
     const channel = supabase
-      .channel("products-clothes-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, (payload) => {
-        const newRow = (payload as any).new as Product | undefined;
-        const oldRow = (payload as any).old as Product | undefined;
+      .channel("products-girl-dresses-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "products" },
+        (payload) => {
+          const newRow = (payload as any).new as Product | undefined;
+          const oldRow = (payload as any).old as Product | undefined;
 
-        if (payload.eventType === "INSERT") {
-          if (newRow?.category !== "clothes") return;
-          if (newRow?.is_active === false) return;
-          setItems((prev) => [newRow, ...prev]);
-          return;
+          if (payload.eventType === "INSERT") {
+            if (newRow?.category !== CATEGORY_KEY) return;
+            if (newRow?.is_active === false) return;
+            setItems((prev) => [newRow, ...prev]);
+            return;
+          }
+
+          if (payload.eventType === "UPDATE") {
+            setItems((prev) => {
+              const wasCategory =
+                oldRow?.category === CATEGORY_KEY && oldRow?.is_active !== false;
+              const isCategory =
+                newRow?.category === CATEGORY_KEY && newRow?.is_active !== false;
+
+              if (wasCategory && !isCategory)
+                return prev.filter((p) => p.id !== oldRow?.id);
+
+              if (isCategory && newRow?.id) {
+                const exists = prev.some((p) => p.id === newRow.id);
+                if (!exists) return [newRow, ...prev];
+                return prev.map((p) => (p.id === newRow.id ? newRow : p));
+              }
+
+              return prev;
+            });
+            return;
+          }
+
+          if (payload.eventType === "DELETE") {
+            if (!oldRow?.id) return;
+            setItems((prev) => prev.filter((p) => p.id !== oldRow.id));
+          }
         }
-
-        if (payload.eventType === "UPDATE") {
-          setItems((prev) => {
-            const wasClothes = oldRow?.category === "clothes" && oldRow?.is_active !== false;
-            const isClothes = newRow?.category === "clothes" && newRow?.is_active !== false;
-
-            if (wasClothes && !isClothes) return prev.filter((p) => p.id !== oldRow?.id);
-
-            if (isClothes && newRow?.id) {
-              const exists = prev.some((p) => p.id === newRow.id);
-              if (!exists) return [newRow, ...prev];
-              return prev.map((p) => (p.id === newRow.id ? newRow : p));
-            }
-
-            return prev;
-          });
-          return;
-        }
-
-        if (payload.eventType === "DELETE") {
-          if (!oldRow?.id) return;
-          setItems((prev) => prev.filter((p) => p.id !== oldRow.id));
-        }
-      })
+      )
       .subscribe();
 
     return () => {
@@ -202,8 +212,13 @@ export default function ClothesPage() {
             </Link>
 
             <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[42%] text-center">
-              <span className="invisible block text-sm font-semibold tracking-tight">Baebe Boo Storefront</span>
-              <div key={titleIndex} className="absolute inset-0 bb-title-anim text-sm font-semibold tracking-tight">
+              <span className="invisible block text-sm font-semibold tracking-tight">
+                Baebe Boo Storefront
+              </span>
+              <div
+                key={titleIndex}
+                className="absolute inset-0 bb-title-anim text-sm font-semibold tracking-tight"
+              >
                 {titles[titleIndex]}
               </div>
             </div>
@@ -231,7 +246,10 @@ export default function ClothesPage() {
           {loading ? (
             <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm">
+                <div
+                  key={i}
+                  className="overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm"
+                >
                   <div className="h-52 bg-black/[0.06]" />
                   <div className="p-5">
                     <div className="h-4 w-2/3 rounded bg-black/[0.06]" />
@@ -243,7 +261,7 @@ export default function ClothesPage() {
             </div>
           ) : err ? (
             <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
-              <div className="text-sm font-semibold">Couldn’t load clothes</div>
+              <div className="text-sm font-semibold">Couldn’t load dresses</div>
               <p className="mt-2 text-sm text-black/70">{err}</p>
               <button
                 onClick={load}
@@ -255,16 +273,14 @@ export default function ClothesPage() {
           ) : items.length === 0 ? (
             <div className="rounded-3xl border border-black/10 bg-white p-8 text-center shadow-sm">
               <div className="text-sm font-semibold">No items added yet</div>
-              <p className="mt-2 text-sm text-black/60">Add products in Supabase and they’ll show here.</p>
+              <p className="mt-2 text-sm text-black/60">
+                Add products in Supabase and they’ll show here.
+              </p>
             </div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
               {items.map((item) => {
                 const imgSrc = resolveProductImage(item.image_url);
-
-                // ✅ debug once per item render
-                // open DevTools console to see it
-                console.log("Product:", item.name, "DB image_url:", item.image_url, "Resolved imgSrc:", imgSrc);
 
                 return (
                   <div
@@ -280,15 +296,18 @@ export default function ClothesPage() {
                         loading="lazy"
                         referrerPolicy="no-referrer"
                         onError={(e) => {
-                          console.log("❌ IMAGE FAILED TO LOAD:", imgSrc);
                           (e.currentTarget as HTMLImageElement).src = PLACEHOLDER;
                         }}
                       />
                     </div>
 
                     <div className="p-5">
-                      <div className="text-base font-semibold tracking-tight">{item.name ?? "Untitled product"}</div>
-                      <div className="mt-1 text-sm text-black/70">{formatter.format(item.price_ghs ?? 0)}</div>
+                      <div className="text-base font-semibold tracking-tight">
+                        {item.name ?? "Untitled product"}
+                      </div>
+                      <div className="mt-1 text-sm text-black/70">
+                        {formatter.format(item.price_ghs ?? 0)}
+                      </div>
 
                       <button
                         onClick={() =>
@@ -304,8 +323,10 @@ export default function ClothesPage() {
                         Add to cart
                       </button>
 
-                      {/* tiny debug line (remove later) */}
-                      <div className="mt-3 text-[10px] text-black/40 break-all">{imgSrc}</div>
+                      {/* optional tiny debug line (remove later) */}
+                      <div className="mt-3 text-[10px] text-black/40 break-all">
+                        {imgSrc}
+                      </div>
                     </div>
                   </div>
                 );

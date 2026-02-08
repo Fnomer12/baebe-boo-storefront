@@ -18,7 +18,6 @@ export default function Home() {
             <div className="max-w-2xl">
               <HeroRotatingTitle />
 
-              {/* Ensure this paragraph always has space and stays visible */}
               <p className="mt-6 sm:mt-7 max-w-xl text-black/70 leading-relaxed text-sm sm:text-base">
                 Clean, premium essentials — thoughtfully curated for everyday
                 care.
@@ -67,10 +66,10 @@ export default function Home() {
               className="group relative block overflow-hidden rounded-3xl border border-black/10 shadow-sm hover:shadow-md transition"
               aria-label="Go to shop"
             >
-              {/* More responsive heights */}
               <div className="relative h-[320px] sm:h-[380px] md:h-[520px]">
+                {/* ✅ key fix: video must not capture clicks */}
                 <video
-                  className="absolute inset-0 h-full w-full object-cover"
+                  className="pointer-events-none absolute inset-0 h-full w-full object-cover"
                   src="/videos/baebeboo.mp4"
                   autoPlay
                   muted
@@ -79,9 +78,9 @@ export default function Home() {
                   preload="metadata"
                 />
 
-                {/* Overlays */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition" />
+                {/* ✅ overlays must not capture clicks */}
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                <div className="pointer-events-none absolute inset-0 bg-black/10 group-hover:bg-black/0 transition" />
 
                 {/* Content */}
                 <div className="relative z-10 h-full flex items-end">
@@ -94,7 +93,6 @@ export default function Home() {
                       with comfort, care, and simplicity in mind.
                     </p>
 
-                    {/* Do NOT nest Link inside Link */}
                     <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-white/90 group-hover:text-white transition">
                       Explore <span className="text-lg">→</span>
                     </span>
@@ -128,7 +126,7 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* About highlights card (no Shop now button) */}
+              {/* About highlights card */}
               <div className="rounded-3xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
                 <div className="text-sm font-semibold">What we prioritize</div>
 

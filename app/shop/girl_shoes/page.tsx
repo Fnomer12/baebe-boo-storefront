@@ -1,4 +1,4 @@
-// app/shop/clothes/page.tsx
+// app/shop/girl_shoes/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -12,7 +12,7 @@ type Product = {
   name: string | null;
   price_ghs: number | null;
   category: string | null;
-  image_url: string | null; // store: "onesie.jpg" OR "clothes/onesie.jpg" OR full URL
+  image_path: string | null; // Supabase Storage path: products/<uuid>.jpg
   created_at?: string | null;
   is_active?: boolean | null;
   stock?: number | null;
@@ -53,7 +53,7 @@ function toPublicUrl(storagePath: string) {
   const cleanPath = storagePath
     .trim()
     .replace(/^\/+/, "")
-    .replace(new RegExp(`^${BUCKET}\/+`), ""); // if user saved "product-images/onesie.jpg"
+    .replace(new RegExp(`^${BUCKET}\/+`), ""); // if user saved "product-images/..."
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(cleanPath);
   return data?.publicUrl || "";
@@ -64,10 +64,10 @@ function toPublicUrl(storagePath: string) {
  * - If DB has full URL -> use it
  * - Else treat DB as storage path -> convert to public URL
  */
-function resolveProductImage(image_url: string | null) {
-  if (!image_url) return PLACEHOLDER;
+function resolveProductImage(image_path: string | null) {
+  if (!image_path) return PLACEHOLDER;
 
-  const raw = image_url.trim();
+  const raw = image_path.trim();
   if (!raw) return PLACEHOLDER;
 
   if (isHttpUrl(raw)) return raw;
@@ -76,14 +76,15 @@ function resolveProductImage(image_url: string | null) {
   return pub || PLACEHOLDER;
 }
 
-export default function ClothesPage() {
+export default function GirlsShoesPage() {
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
   const { addItem, totalItems, hydrated } = useCart();
 
-  const titles = ["Boys Clothes Store", "Baebe Boo Storefront"] as const;
+  // ✅ SAME rotating header pattern as clothes/page.tsx
+  const titles = ["Girls Shoes", "Baebe Boo Storefront"] as const;
   const [titleIndex, setTitleIndex] = useState(0);
 
   const formatter = useMemo(
@@ -102,8 +103,8 @@ export default function ClothesPage() {
 
     const { data, error } = await supabase
       .from("products")
-      .select("id,name,price_ghs,category,image_url,created_at,is_active,stock")
-      .eq("category", "clothes")
+      .select("id,name,price_ghs,category,image_path,created_at,is_active,stock")
+      .eq("category", "girl_shoes")
       .eq("is_active", true)
       .order("created_at", { ascending: false });
 
@@ -121,18 +122,20 @@ export default function ClothesPage() {
   useEffect(() => {
     load();
 
+    // ✅ SAME interval rotation
     const t = setInterval(() => {
       setTitleIndex((i) => (i + 1) % titles.length);
     }, 3000);
 
+    // ✅ realtime updates
     const channel = supabase
-      .channel("products-clothes-realtime")
+      .channel("products-girl-shoes-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "products" }, (payload) => {
         const newRow = (payload as any).new as Product | undefined;
         const oldRow = (payload as any).old as Product | undefined;
 
         if (payload.eventType === "INSERT") {
-          if (newRow?.category !== "clothes") return;
+          if (newRow?.category !== "girl_shoes") return;
           if (newRow?.is_active === false) return;
           setItems((prev) => [newRow, ...prev]);
           return;
@@ -140,12 +143,12 @@ export default function ClothesPage() {
 
         if (payload.eventType === "UPDATE") {
           setItems((prev) => {
-            const wasClothes = oldRow?.category === "clothes" && oldRow?.is_active !== false;
-            const isClothes = newRow?.category === "clothes" && newRow?.is_active !== false;
+            const was = oldRow?.category === "girl_shoes" && oldRow?.is_active !== false;
+            const now = newRow?.category === "girl_shoes" && newRow?.is_active !== false;
 
-            if (wasClothes && !isClothes) return prev.filter((p) => p.id !== oldRow?.id);
+            if (was && !now) return prev.filter((p) => p.id !== oldRow?.id);
 
-            if (isClothes && newRow?.id) {
+            if (now && newRow?.id) {
               const exists = prev.some((p) => p.id === newRow.id);
               if (!exists) return [newRow, ...prev];
               return prev.map((p) => (p.id === newRow.id ? newRow : p));
@@ -201,6 +204,7 @@ export default function ClothesPage() {
               ←
             </Link>
 
+            {/* ✅ EXACT SAME rotating title layout as clothes/page.tsx */}
             <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[42%] text-center">
               <span className="invisible block text-sm font-semibold tracking-tight">Baebe Boo Storefront</span>
               <div key={titleIndex} className="absolute inset-0 bb-title-anim text-sm font-semibold tracking-tight">
@@ -243,7 +247,7 @@ export default function ClothesPage() {
             </div>
           ) : err ? (
             <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
-              <div className="text-sm font-semibold">Couldn’t load clothes</div>
+              <div className="text-sm font-semibold">Couldn’t load girls shoes</div>
               <p className="mt-2 text-sm text-black/70">{err}</p>
               <button
                 onClick={load}
@@ -255,16 +259,12 @@ export default function ClothesPage() {
           ) : items.length === 0 ? (
             <div className="rounded-3xl border border-black/10 bg-white p-8 text-center shadow-sm">
               <div className="text-sm font-semibold">No items added yet</div>
-              <p className="mt-2 text-sm text-black/60">Add products in Supabase and they’ll show here.</p>
+              <p className="mt-2 text-sm text-black/60">Upload products and they’ll show here.</p>
             </div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
               {items.map((item) => {
-                const imgSrc = resolveProductImage(item.image_url);
-
-                // ✅ debug once per item render
-                // open DevTools console to see it
-                console.log("Product:", item.name, "DB image_url:", item.image_url, "Resolved imgSrc:", imgSrc);
+                const imgSrc = resolveProductImage(item.image_path);
 
                 return (
                   <div
@@ -280,7 +280,6 @@ export default function ClothesPage() {
                         loading="lazy"
                         referrerPolicy="no-referrer"
                         onError={(e) => {
-                          console.log("❌ IMAGE FAILED TO LOAD:", imgSrc);
                           (e.currentTarget as HTMLImageElement).src = PLACEHOLDER;
                         }}
                       />
@@ -296,16 +295,13 @@ export default function ClothesPage() {
                             id: item.id,
                             name: item.name ?? "Untitled product",
                             price_ghs: item.price_ghs ?? 0,
-                            image_url: imgSrc, // store resolved URL in cart
+                            image_url: imgSrc,
                           })
                         }
                         className="mt-5 inline-flex items-center rounded-full bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-black/90"
                       >
                         Add to cart
                       </button>
-
-                      {/* tiny debug line (remove later) */}
-                      <div className="mt-3 text-[10px] text-black/40 break-all">{imgSrc}</div>
                     </div>
                   </div>
                 );
