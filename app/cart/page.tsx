@@ -234,17 +234,18 @@ export default function CartPage() {
 
   // ✅ Apple removed: only Google remains
   async function signIn(provider: "google") {
+    const origin = window.location.origin;
+  
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo:
-          typeof window !== "undefined"
-            ? `${window.location.origin}/cart`
-            : undefined,
+        redirectTo: `${origin}/auth/callback?next=/cart`,
       },
     });
+  
     if (error) alert(error.message);
   }
+  
 
   async function signOut() {
     await supabase.auth.signOut();
