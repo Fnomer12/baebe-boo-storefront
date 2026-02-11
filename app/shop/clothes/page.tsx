@@ -12,11 +12,50 @@ type Product = {
   name: string | null;
   price_ghs: number | null;
   category: string | null;
-  image_url: string | null;
+  image_url: string | null;   // full URL (optional)
+  image_path: string | null;  // storage path (recommended)
   created_at?: string | null;
   is_active?: boolean | null;
   stock?: number | null;
 };
+
+const BUCKET = "product-images";
+const PLACEHOLDER = "/images/products/placeholder.jpg";
+
+function isHttpUrl(v: string) {
+  return v.startsWith("http://") || v.startsWith("https://");
+}
+
+function toPublicUrl(storagePath: string) {
+  const cleanPath = storagePath
+    .trim()
+    .replace(/^\/+/, "")
+    .replace(new RegExp(`^${BUCKET}\/+`), "");
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(cleanPath);
+  return data?.publicUrl || "";
+}
+
+function resolveProductImage(image_url: string | null, image_path: string | null) {
+  // Prefer full URL if present
+  if (image_url) {
+    const raw = image_url.trim();
+    if (raw && isHttpUrl(raw)) return raw;
+    // If someone stored a path in image_url, try converting it
+    if (raw) {
+      const pub = toPublicUrl(raw);
+      if (pub) return pub;
+    }
+  }
+
+  // Otherwise, build from image_path
+  if (image_path) {
+    const pub = toPublicUrl(image_path);
+    if (pub) return pub;
+  }
+
+  return PLACEHOLDER;
+}
 
 function CartIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
@@ -38,32 +77,6 @@ function CartIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
-const BUCKET = "product-images";
-const PLACEHOLDER = "/images/products/placeholder.jpg";
-
-function isHttpUrl(v: string) {
-  return v.startsWith("http://") || v.startsWith("https://");
-}
-
-function toPublicUrl(storagePath: string) {
-  const cleanPath = storagePath
-    .trim()
-    .replace(/^\/+/, "")
-    .replace(new RegExp(`^${BUCKET}\/+`), "");
-
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(cleanPath);
-  return data?.publicUrl || "";
-}
-
-function resolveProductImage(image_url: string | null) {
-  if (!image_url) return PLACEHOLDER;
-  const raw = image_url.trim();
-  if (!raw) return PLACEHOLDER;
-  if (isHttpUrl(raw)) return raw;
-  const pub = toPublicUrl(raw);
-  return pub || PLACEHOLDER;
-}
-
 export default function ClothesPage() {
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,7 +87,6 @@ export default function ClothesPage() {
   const titles = ["Boys Clothes Store", "Baebe Boo Storefront"] as const;
   const [titleIndex, setTitleIndex] = useState(0);
 
-  // ✅ UI micro-interactions
   const [cartPulse, setCartPulse] = useState(false);
   const [addedMap, setAddedMap] = useState<Record<string, boolean>>({});
   const addedTimersRef = useRef<Record<string, number>>({});
@@ -96,7 +108,7 @@ export default function ClothesPage() {
 
     const { data, error } = await supabase
       .from("products")
-      .select("id,name,price_ghs,category,image_url,created_at,is_active,stock")
+      .select("id,name,price_ghs,category,image_url,image_path,created_at,is_active,stock")
       .eq("category", "clothes")
       .eq("is_active", true)
       .order("created_at", { ascending: false });
@@ -110,6 +122,17 @@ export default function ClothesPage() {
 
     setItems((data ?? []) as Product[]);
     setLoading(false);
+  }
+
+  function markAdded(productId: string) {
+    const existing = addedTimersRef.current[productId];
+    if (existing) window.clearTimeout(existing);
+
+    setAddedMap((m) => ({ ...m, [productId]: true }));
+    addedTimersRef.current[productId] = window.setTimeout(() => {
+      setAddedMap((m) => ({ ...m, [productId]: false }));
+      delete addedTimersRef.current[productId];
+    }, 900);
   }
 
   // Cart pulse when count changes (and after hydration)
@@ -127,10 +150,11 @@ export default function ClothesPage() {
     prevTotalRef.current = totalItems;
   }, [totalItems, hydrated]);
 
+  // initial load + rotating title + realtime updates
   useEffect(() => {
     load();
 
-    const t = setInterval(() => {
+    const t = window.setInterval(() => {
       setTitleIndex((i) => (i + 1) % titles.length);
     }, 3000);
 
@@ -140,6 +164,7 @@ export default function ClothesPage() {
         const newRow = (payload as any).new as Product | undefined;
         const oldRow = (payload as any).old as Product | undefined;
 
+        // INSERT
         if (payload.eventType === "INSERT") {
           if (newRow?.category !== "clothes") return;
           if (newRow?.is_active === false) return;
@@ -147,6 +172,7 @@ export default function ClothesPage() {
           return;
         }
 
+        // UPDATE
         if (payload.eventType === "UPDATE") {
           setItems((prev) => {
             const wasClothes = oldRow?.category === "clothes" && oldRow?.is_active !== false;
@@ -165,6 +191,7 @@ export default function ClothesPage() {
           return;
         }
 
+        // DELETE
         if (payload.eventType === "DELETE") {
           if (!oldRow?.id) return;
           setItems((prev) => prev.filter((p) => p.id !== oldRow.id));
@@ -173,27 +200,13 @@ export default function ClothesPage() {
       .subscribe();
 
     return () => {
-      clearInterval(t);
+      window.clearInterval(t);
       supabase.removeChannel(channel);
-
-      // clear any running timers for "Added"
       Object.values(addedTimersRef.current).forEach((timerId) => window.clearTimeout(timerId));
       addedTimersRef.current = {};
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  function markAdded(productId: string) {
-    // clear previous timer if spam-clicked
-    const existing = addedTimersRef.current[productId];
-    if (existing) window.clearTimeout(existing);
-
-    setAddedMap((m) => ({ ...m, [productId]: true }));
-    addedTimersRef.current[productId] = window.setTimeout(() => {
-      setAddedMap((m) => ({ ...m, [productId]: false }));
-      delete addedTimersRef.current[productId];
-    }, 900);
-  }
 
   return (
     <main className="min-h-screen bg-white text-black">
@@ -212,7 +225,6 @@ export default function ClothesPage() {
           animation: bbFadeSlide 240ms ease-out;
         }
 
-        /* ✅ cart + badge micro-animations */
         @keyframes bbPop {
           0% {
             transform: scale(1);
@@ -245,7 +257,6 @@ export default function ClothesPage() {
           animation: bbBounce 260ms ease-out;
         }
 
-        /* ✅ item added highlight */
         @keyframes bbGlow {
           0% {
             box-shadow: 0 0 0 rgba(0, 0, 0, 0);
@@ -338,12 +349,12 @@ export default function ClothesPage() {
           ) : items.length === 0 ? (
             <div className="rounded-3xl border border-black/10 bg-white p-8 text-center shadow-sm">
               <div className="text-sm font-semibold">No items added yet</div>
-              <p className="mt-2 text-sm text-black/60">Add products in Supabase and they’ll show here.</p>
+              <p className="mt-2 text-sm text-black/60">Upload products from the admin page and they’ll show here.</p>
             </div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
               {items.map((item) => {
-                const imgSrc = resolveProductImage(item.image_url);
+                const imgSrc = resolveProductImage(item.image_url, item.image_path);
                 const isAdded = !!addedMap[item.id];
 
                 return (
@@ -397,8 +408,8 @@ export default function ClothesPage() {
                         )}
                       </button>
 
-                      {/* tiny debug line (remove later) */}
-                      <div className="mt-3 text-[10px] text-black/40 break-all">{imgSrc}</div>
+                      {/* debug line: remove later */}
+                      
                     </div>
                   </div>
                 );

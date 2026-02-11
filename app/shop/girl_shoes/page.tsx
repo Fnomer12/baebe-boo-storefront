@@ -12,11 +12,51 @@ type Product = {
   name: string | null;
   price_ghs: number | null;
   category: string | null;
-  image_path: string | null; // Supabase Storage path OR full URL
+  image_url: string | null;   // full URL (optional) OR sometimes a path
+  image_path: string | null;  // storage path (recommended)
   created_at?: string | null;
   is_active?: boolean | null;
   stock?: number | null;
 };
+
+const BUCKET = "product-images";
+const PLACEHOLDER = "/images/products/placeholder.jpg";
+
+function isHttpUrl(v: string) {
+  return v.startsWith("http://") || v.startsWith("https://");
+}
+
+function toPublicUrl(storagePath: string) {
+  const cleanPath = storagePath
+    .trim()
+    .replace(/^\/+/, "")
+    .replace(new RegExp(`^${BUCKET}\/+`), "");
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(cleanPath);
+  return data?.publicUrl || "";
+}
+
+function resolveProductImage(image_url: string | null, image_path: string | null) {
+  // Prefer full URL if present
+  if (image_url) {
+    const raw = image_url.trim();
+    if (raw && isHttpUrl(raw)) return raw;
+
+    // If someone stored a path in image_url, try converting it
+    if (raw) {
+      const pub = toPublicUrl(raw);
+      if (pub) return pub;
+    }
+  }
+
+  // Otherwise, build from image_path
+  if (image_path) {
+    const pub = toPublicUrl(image_path);
+    if (pub) return pub;
+  }
+
+  return PLACEHOLDER;
+}
 
 function CartIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
@@ -38,36 +78,9 @@ function CartIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
-const BUCKET = "product-images";
-const PLACEHOLDER = "/images/products/placeholder.jpg";
-
-function isHttpUrl(v: string) {
-  return v.startsWith("http://") || v.startsWith("https://");
-}
-
-function toPublicUrl(storagePath: string) {
-  const cleanPath = storagePath
-    .trim()
-    .replace(/^\/+/, "")
-    .replace(new RegExp(`^${BUCKET}\/+`), "");
-
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(cleanPath);
-  return data?.publicUrl || "";
-}
-
-function resolveProductImage(image_path: string | null) {
-  if (!image_path) return PLACEHOLDER;
-
-  const raw = image_path.trim();
-  if (!raw) return PLACEHOLDER;
-
-  if (isHttpUrl(raw)) return raw;
-
-  const pub = toPublicUrl(raw);
-  return pub || PLACEHOLDER;
-}
-
 export default function GirlsShoesPage() {
+  const CATEGORY_KEY = "girl_shoes";
+
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -77,7 +90,7 @@ export default function GirlsShoesPage() {
   const titles = ["Girls Shoes", "Baebe Boo Storefront"] as const;
   const [titleIndex, setTitleIndex] = useState(0);
 
-  // ✅ cart + "Added" micro-interactions
+  // cart + "Added" micro-interactions
   const [cartPulse, setCartPulse] = useState(false);
   const prevTotalRef = useRef(0);
 
@@ -100,8 +113,8 @@ export default function GirlsShoesPage() {
 
     const { data, error } = await supabase
       .from("products")
-      .select("id,name,price_ghs,category,image_path,created_at,is_active,stock")
-      .eq("category", "girl_shoes")
+      .select("id,name,price_ghs,category,image_url,image_path,created_at,is_active,stock")
+      .eq("category", CATEGORY_KEY)
       .eq("is_active", true)
       .order("created_at", { ascending: false });
 
@@ -116,7 +129,7 @@ export default function GirlsShoesPage() {
     setLoading(false);
   }
 
-  // ✅ animate cart when number changes
+  // animate cart when number changes
   useEffect(() => {
     if (!hydrated) return;
 
@@ -145,7 +158,7 @@ export default function GirlsShoesPage() {
   useEffect(() => {
     load();
 
-    const t = setInterval(() => {
+    const t = window.setInterval(() => {
       setTitleIndex((i) => (i + 1) % titles.length);
     }, 3000);
 
@@ -156,7 +169,7 @@ export default function GirlsShoesPage() {
         const oldRow = (payload as any).old as Product | undefined;
 
         if (payload.eventType === "INSERT") {
-          if (newRow?.category !== "girl_shoes") return;
+          if (newRow?.category !== CATEGORY_KEY) return;
           if (newRow?.is_active === false) return;
           setItems((prev) => [newRow, ...prev]);
           return;
@@ -164,8 +177,8 @@ export default function GirlsShoesPage() {
 
         if (payload.eventType === "UPDATE") {
           setItems((prev) => {
-            const was = oldRow?.category === "girl_shoes" && oldRow?.is_active !== false;
-            const now = newRow?.category === "girl_shoes" && newRow?.is_active !== false;
+            const was = oldRow?.category === CATEGORY_KEY && oldRow?.is_active !== false;
+            const now = newRow?.category === CATEGORY_KEY && newRow?.is_active !== false;
 
             if (was && !now) return prev.filter((p) => p.id !== oldRow?.id);
 
@@ -188,9 +201,8 @@ export default function GirlsShoesPage() {
       .subscribe();
 
     return () => {
-      clearInterval(t);
+      window.clearInterval(t);
       supabase.removeChannel(channel);
-
       Object.values(addedTimersRef.current).forEach((timerId) => window.clearTimeout(timerId));
       addedTimersRef.current = {};
     };
@@ -214,7 +226,6 @@ export default function GirlsShoesPage() {
           animation: bbFadeSlide 240ms ease-out;
         }
 
-        /* ✅ cart + badge micro-animations */
         @keyframes bbPop {
           0% {
             transform: scale(1);
@@ -247,7 +258,6 @@ export default function GirlsShoesPage() {
           animation: bbBounce 260ms ease-out;
         }
 
-        /* ✅ item added highlight */
         @keyframes bbGlow {
           0% {
             box-shadow: 0 0 0 rgba(0, 0, 0, 0);
@@ -300,6 +310,7 @@ export default function GirlsShoesPage() {
                     "absolute -right-1 -top-1 h-[18px] min-w-[18px] rounded-full bg-black px-1 text-center text-[11px] leading-[18px] text-white",
                     cartPulse ? "bb-badge-pop" : "",
                   ].join(" ")}
+                  aria-label={`${totalItems} items in cart`}
                 >
                   {totalItems}
                 </span>
@@ -339,12 +350,12 @@ export default function GirlsShoesPage() {
           ) : items.length === 0 ? (
             <div className="rounded-3xl border border-black/10 bg-white p-8 text-center shadow-sm">
               <div className="text-sm font-semibold">No items added yet</div>
-              <p className="mt-2 text-sm text-black/60">Upload products and they’ll show here.</p>
+              <p className="mt-2 text-sm text-black/60">Upload products from the admin page and they’ll show here.</p>
             </div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
               {items.map((item) => {
-                const imgSrc = resolveProductImage(item.image_path);
+                const imgSrc = resolveProductImage(item.image_url, item.image_path);
                 const isAdded = !!addedMap[item.id];
 
                 return (
@@ -379,7 +390,7 @@ export default function GirlsShoesPage() {
                             id: item.id,
                             name: item.name ?? "Untitled product",
                             price_ghs: item.price_ghs ?? 0,
-                            image_url: imgSrc, // store resolved URL in cart
+                            image_url: imgSrc,
                           });
                           markAdded(item.id);
                         }}
@@ -390,7 +401,7 @@ export default function GirlsShoesPage() {
                       >
                         {isAdded ? (
                           <>
-                            <span>Added</span>
+                            <span className="inline-block">Added</span>
                             <span aria-hidden="true">✓</span>
                           </>
                         ) : (

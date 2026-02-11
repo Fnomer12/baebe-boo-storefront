@@ -7,6 +7,16 @@ import Footer from "@/components/Footer";
 import { supabase } from "@/lib/supabaseClient";
 import { useCart } from "@/components/CartProvider";
 
+// 👇 PUT IT RIGHT HERE
+function getPublicUrl(path: string | null) {
+  if (!path) return "";
+  const { data } = supabase.storage
+    .from("product-images")
+    .getPublicUrl(path);
+  return data?.publicUrl || "";
+}
+
+
 type Product = {
   id: string;
   name: string | null;

@@ -42,7 +42,9 @@ export async function POST(req: Request) {
   }
 
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-  const image_path = `products/${id}.${ext}`;
+  const safeCategory = category || "uncategorized";
+  const image_path = `${safeCategory}/${id}.${ext}`;
+
 
   const buffer = Buffer.from(await file.arrayBuffer());
 
@@ -55,17 +57,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: uploadError.message }, { status: 400 });
   }
 
-  const { error } = await sb.from("products").insert({
-    id,
-    name,
-    slug,
-    description,
-    category,
-    price_ghs,
-    stock,
-    is_active: true,
-    image_path,
-  });
+ // Get public URL after upload
+const { data: pub } = sb.storage.from(BUCKET).getPublicUrl(image_path);
+const image_url = pub?.publicUrl ?? null;
+
+// Insert product row
+const { error } = await sb.from("products").insert({
+  id,
+  name,
+  slug,
+  description,
+  category,
+  price_ghs,
+  stock,
+  is_active: true,
+  image_path,
+  image_url, // ✅ add this line
+});
+
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
