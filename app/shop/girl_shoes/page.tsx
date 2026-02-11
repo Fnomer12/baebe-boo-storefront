@@ -1,7 +1,7 @@
 // app/shop/girl_shoes/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Footer from "@/components/Footer";
 import { supabase } from "@/lib/supabaseClient";
@@ -12,7 +12,7 @@ type Product = {
   name: string | null;
   price_ghs: number | null;
   category: string | null;
-  image_path: string | null; // Supabase Storage path: products/<uuid>.jpg
+  image_path: string | null; // Supabase Storage path OR full URL
   created_at?: string | null;
   is_active?: boolean | null;
   stock?: number | null;
@@ -45,25 +45,16 @@ function isHttpUrl(v: string) {
   return v.startsWith("http://") || v.startsWith("https://");
 }
 
-/**
- * Build a public URL from Supabase Storage.
- * IMPORTANT: This does not depend on your DB containing the full URL.
- */
 function toPublicUrl(storagePath: string) {
   const cleanPath = storagePath
     .trim()
     .replace(/^\/+/, "")
-    .replace(new RegExp(`^${BUCKET}\/+`), ""); // if user saved "product-images/..."
+    .replace(new RegExp(`^${BUCKET}\/+`), "");
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(cleanPath);
   return data?.publicUrl || "";
 }
 
-/**
- * Resolve a product image:
- * - If DB has full URL -> use it
- * - Else treat DB as storage path -> convert to public URL
- */
 function resolveProductImage(image_path: string | null) {
   if (!image_path) return PLACEHOLDER;
 
@@ -83,9 +74,15 @@ export default function GirlsShoesPage() {
 
   const { addItem, totalItems, hydrated } = useCart();
 
-  // ✅ SAME rotating header pattern as clothes/page.tsx
   const titles = ["Girls Shoes", "Baebe Boo Storefront"] as const;
   const [titleIndex, setTitleIndex] = useState(0);
+
+  // ✅ cart + "Added" micro-interactions
+  const [cartPulse, setCartPulse] = useState(false);
+  const prevTotalRef = useRef(0);
+
+  const [addedMap, setAddedMap] = useState<Record<string, boolean>>({});
+  const addedTimersRef = useRef<Record<string, number>>({});
 
   const formatter = useMemo(
     () =>
@@ -119,15 +116,39 @@ export default function GirlsShoesPage() {
     setLoading(false);
   }
 
+  // ✅ animate cart when number changes
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const prev = prevTotalRef.current;
+    if (totalItems !== prev) {
+      setCartPulse(true);
+      const t = window.setTimeout(() => setCartPulse(false), 260);
+      prevTotalRef.current = totalItems;
+      return () => window.clearTimeout(t);
+    }
+
+    prevTotalRef.current = totalItems;
+  }, [totalItems, hydrated]);
+
+  function markAdded(productId: string) {
+    const existing = addedTimersRef.current[productId];
+    if (existing) window.clearTimeout(existing);
+
+    setAddedMap((m) => ({ ...m, [productId]: true }));
+    addedTimersRef.current[productId] = window.setTimeout(() => {
+      setAddedMap((m) => ({ ...m, [productId]: false }));
+      delete addedTimersRef.current[productId];
+    }, 900);
+  }
+
   useEffect(() => {
     load();
 
-    // ✅ SAME interval rotation
     const t = setInterval(() => {
       setTitleIndex((i) => (i + 1) % titles.length);
     }, 3000);
 
-    // ✅ realtime updates
     const channel = supabase
       .channel("products-girl-shoes-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "products" }, (payload) => {
@@ -169,6 +190,9 @@ export default function GirlsShoesPage() {
     return () => {
       clearInterval(t);
       supabase.removeChannel(channel);
+
+      Object.values(addedTimersRef.current).forEach((timerId) => window.clearTimeout(timerId));
+      addedTimersRef.current = {};
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -189,6 +213,55 @@ export default function GirlsShoesPage() {
         .bb-title-anim {
           animation: bbFadeSlide 240ms ease-out;
         }
+
+        /* ✅ cart + badge micro-animations */
+        @keyframes bbPop {
+          0% {
+            transform: scale(1);
+          }
+          40% {
+            transform: scale(1.22);
+          }
+          100% {
+            transform: scale(1);
+          }
+        }
+        @keyframes bbBounce {
+          0% {
+            transform: translateY(0);
+          }
+          35% {
+            transform: translateY(-2px);
+          }
+          70% {
+            transform: translateY(0);
+          }
+          100% {
+            transform: translateY(0);
+          }
+        }
+        .bb-badge-pop {
+          animation: bbPop 260ms ease-out;
+        }
+        .bb-cart-bounce {
+          animation: bbBounce 260ms ease-out;
+        }
+
+        /* ✅ item added highlight */
+        @keyframes bbGlow {
+          0% {
+            box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+          }
+          35% {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+          }
+          100% {
+            box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+          }
+        }
+        .bb-added-glow {
+          animation: bbGlow 900ms ease-out;
+        }
       `}</style>
 
       {/* TOP BAR */}
@@ -204,7 +277,6 @@ export default function GirlsShoesPage() {
               ←
             </Link>
 
-            {/* ✅ EXACT SAME rotating title layout as clothes/page.tsx */}
             <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[42%] text-center">
               <span className="invisible block text-sm font-semibold tracking-tight">Baebe Boo Storefront</span>
               <div key={titleIndex} className="absolute inset-0 bb-title-anim text-sm font-semibold tracking-tight">
@@ -218,9 +290,17 @@ export default function GirlsShoesPage() {
               title="Cart"
               className="relative flex h-10 w-10 items-center justify-center rounded-full text-black/70 transition hover:bg-black/5 hover:text-black"
             >
-              <CartIcon className="h-5 w-5" />
+              <span className={cartPulse ? "bb-cart-bounce" : ""}>
+                <CartIcon className="h-5 w-5" />
+              </span>
+
               {hydrated && totalItems > 0 && (
-                <span className="absolute -right-1 -top-1 h-[18px] min-w-[18px] rounded-full bg-black px-1 text-center text-[11px] leading-[18px] text-white">
+                <span
+                  className={[
+                    "absolute -right-1 -top-1 h-[18px] min-w-[18px] rounded-full bg-black px-1 text-center text-[11px] leading-[18px] text-white",
+                    cartPulse ? "bb-badge-pop" : "",
+                  ].join(" ")}
+                >
                   {totalItems}
                 </span>
               )}
@@ -265,11 +345,15 @@ export default function GirlsShoesPage() {
             <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
               {items.map((item) => {
                 const imgSrc = resolveProductImage(item.image_path);
+                const isAdded = !!addedMap[item.id];
 
                 return (
                   <div
                     key={item.id}
-                    className="group overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm transition hover:shadow-md"
+                    className={[
+                      "group overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm transition hover:shadow-md",
+                      isAdded ? "bb-added-glow" : "",
+                    ].join(" ")}
                   >
                     <div className="relative w-full overflow-hidden bg-black/[0.03] aspect-[4/3]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -290,17 +374,28 @@ export default function GirlsShoesPage() {
                       <div className="mt-1 text-sm text-black/70">{formatter.format(item.price_ghs ?? 0)}</div>
 
                       <button
-                        onClick={() =>
+                        onClick={() => {
                           addItem({
                             id: item.id,
                             name: item.name ?? "Untitled product",
                             price_ghs: item.price_ghs ?? 0,
-                            image_url: imgSrc,
-                          })
-                        }
-                        className="mt-5 inline-flex items-center rounded-full bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-black/90"
+                            image_url: imgSrc, // store resolved URL in cart
+                          });
+                          markAdded(item.id);
+                        }}
+                        className={[
+                          "mt-5 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white transition",
+                          isAdded ? "bg-black/80" : "bg-black hover:bg-black/90",
+                        ].join(" ")}
                       >
-                        Add to cart
+                        {isAdded ? (
+                          <>
+                            <span>Added</span>
+                            <span aria-hidden="true">✓</span>
+                          </>
+                        ) : (
+                          "Add to cart"
+                        )}
                       </button>
                     </div>
                   </div>

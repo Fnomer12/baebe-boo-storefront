@@ -1,7 +1,7 @@
 // app/shop/accessories/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Footer from "@/components/Footer";
 import { supabase } from "@/lib/supabaseClient";
@@ -48,6 +48,13 @@ export default function AccessoriesPage() {
   const titles = ["Accessories Store", "Baebe Boo Storefront"] as const;
   const [titleIndex, setTitleIndex] = useState(0);
 
+  // ✅ cart + "Added" micro-interactions
+  const [cartPulse, setCartPulse] = useState(false);
+  const prevTotalRef = useRef(0);
+
+  const [addedMap, setAddedMap] = useState<Record<string, boolean>>({});
+  const addedTimersRef = useRef<Record<string, number>>({});
+
   const formatter = useMemo(
     () =>
       new Intl.NumberFormat("en-GH", {
@@ -79,6 +86,32 @@ export default function AccessoriesPage() {
     setLoading(false);
   }
 
+  // ✅ animate cart when number changes
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const prev = prevTotalRef.current;
+    if (totalItems !== prev) {
+      setCartPulse(true);
+      const t = window.setTimeout(() => setCartPulse(false), 260);
+      prevTotalRef.current = totalItems;
+      return () => window.clearTimeout(t);
+    }
+
+    prevTotalRef.current = totalItems;
+  }, [totalItems, hydrated]);
+
+  function markAdded(productId: string) {
+    const existing = addedTimersRef.current[productId];
+    if (existing) window.clearTimeout(existing);
+
+    setAddedMap((m) => ({ ...m, [productId]: true }));
+    addedTimersRef.current[productId] = window.setTimeout(() => {
+      setAddedMap((m) => ({ ...m, [productId]: false }));
+      delete addedTimersRef.current[productId];
+    }, 900);
+  }
+
   useEffect(() => {
     load();
 
@@ -89,59 +122,50 @@ export default function AccessoriesPage() {
 
     const channel = supabase
       .channel("products-accessories-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "products" },
-        (payload) => {
-          const newRow = (payload as any).new as Product | undefined;
-          const oldRow = (payload as any).old as Product | undefined;
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, (payload) => {
+        const newRow = (payload as any).new as Product | undefined;
+        const oldRow = (payload as any).old as Product | undefined;
 
-          if (
-            payload.eventType === "INSERT" &&
-            newRow?.category === "accessories"
-          ) {
-            if (newRow.is_active === false) return;
-            setItems((prev) => [newRow, ...prev]);
-          }
-
-          if (payload.eventType === "UPDATE") {
-            setItems((prev) => {
-              const wasAccessories = oldRow?.category === "accessories";
-              const isAccessories =
-                newRow?.category === "accessories" &&
-                newRow?.is_active !== false;
-
-              if (wasAccessories && !isAccessories) {
-                return prev.filter((p) => p.id !== oldRow?.id);
-              }
-
-              if (isAccessories && newRow?.id) {
-                const exists = prev.some((p) => p.id === newRow.id);
-                if (!exists) return [newRow, ...prev];
-                return prev.map((p) => (p.id === newRow.id ? newRow : p));
-              }
-
-              return prev;
-            });
-          }
-
-          if (payload.eventType === "DELETE" && oldRow?.id) {
-            setItems((prev) => prev.filter((p) => p.id !== oldRow.id));
-          }
+        if (payload.eventType === "INSERT" && newRow?.category === "accessories") {
+          if (newRow.is_active === false) return;
+          setItems((prev) => [newRow, ...prev]);
         }
-      )
+
+        if (payload.eventType === "UPDATE") {
+          setItems((prev) => {
+            const wasAccessories = oldRow?.category === "accessories" && oldRow?.is_active !== false;
+            const isAccessories = newRow?.category === "accessories" && newRow?.is_active !== false;
+
+            if (wasAccessories && !isAccessories) return prev.filter((p) => p.id !== oldRow?.id);
+
+            if (isAccessories && newRow?.id) {
+              const exists = prev.some((p) => p.id === newRow.id);
+              if (!exists) return [newRow, ...prev];
+              return prev.map((p) => (p.id === newRow.id ? newRow : p));
+            }
+
+            return prev;
+          });
+        }
+
+        if (payload.eventType === "DELETE" && oldRow?.id) {
+          setItems((prev) => prev.filter((p) => p.id !== oldRow.id));
+        }
+      })
       .subscribe();
 
     return () => {
       clearInterval(t);
       supabase.removeChannel(channel);
+
+      Object.values(addedTimersRef.current).forEach((timerId) => window.clearTimeout(timerId));
+      addedTimersRef.current = {};
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <main className="min-h-screen bg-white text-black">
-      {/* tiny keyframes just for the title */}
       <style jsx global>{`
         @keyframes bbFadeSlide {
           from {
@@ -156,58 +180,101 @@ export default function AccessoriesPage() {
         .bb-title-anim {
           animation: bbFadeSlide 240ms ease-out;
         }
+
+        /* ✅ cart + badge micro-animations */
+        @keyframes bbPop {
+          0% {
+            transform: scale(1);
+          }
+          40% {
+            transform: scale(1.22);
+          }
+          100% {
+            transform: scale(1);
+          }
+        }
+        @keyframes bbBounce {
+          0% {
+            transform: translateY(0);
+          }
+          35% {
+            transform: translateY(-2px);
+          }
+          70% {
+            transform: translateY(0);
+          }
+          100% {
+            transform: translateY(0);
+          }
+        }
+        .bb-badge-pop {
+          animation: bbPop 260ms ease-out;
+        }
+        .bb-cart-bounce {
+          animation: bbBounce 260ms ease-out;
+        }
+
+        /* ✅ item added highlight */
+        @keyframes bbGlow {
+          0% {
+            box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+          }
+          35% {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+          }
+          100% {
+            box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+          }
+        }
+        .bb-added-glow {
+          animation: bbGlow 900ms ease-out;
+        }
       `}</style>
 
-    {/* TOP BAR */}
-<div className="sticky top-0 z-40 border-b border-black/10 bg-white/80 backdrop-blur">
-  <div className="max-w-6xl mx-auto px-6 h-16">
-    <div className="relative h-full flex items-center justify-between">
-      {/* Left: Back icon (centered in a fixed hit area) */}
-      <Link
-        href="/shop"
-        aria-label="Back"
-        title="Back"
-        className="flex h-10 w-10 items-center justify-center rounded-full text-black/70 hover:text-black hover:bg-black/5 transition"
-      >
-        ←
-      </Link>
+      {/* TOP BAR */}
+      <div className="sticky top-0 z-40 border-b border-black/10 bg-white/80 backdrop-blur">
+        <div className="max-w-6xl mx-auto px-6 h-16">
+          <div className="relative h-full flex items-center justify-between">
+            <Link
+              href="/shop"
+              aria-label="Back"
+              title="Back"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-black/70 hover:text-black hover:bg-black/5 transition"
+            >
+              ←
+            </Link>
 
-       {/* Center: Rotating title (optically centered, slightly lower) */}
-<div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[42%] text-center">
-  {/* width stabilizer */}
-  <span className="invisible block text-sm font-semibold tracking-tight">
-    Baebe Boo Storefront
-  </span>
+            <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[42%] text-center">
+              <span className="invisible block text-sm font-semibold tracking-tight">Baebe Boo Storefront</span>
+              <div key={titleIndex} className="absolute inset-0 bb-title-anim text-sm font-semibold tracking-tight">
+                {titles[titleIndex]}
+              </div>
+            </div>
 
-  <div
-    key={titleIndex}
-    className="absolute inset-0 bb-title-anim text-sm font-semibold tracking-tight"
-  >
-    {titles[titleIndex]}
-  </div>
-</div>
+            <Link
+              href="/cart"
+              aria-label="Cart"
+              title="Cart"
+              className="relative flex h-10 w-10 items-center justify-center rounded-full text-black/70 hover:text-black hover:bg-black/5 transition"
+            >
+              <span className={cartPulse ? "bb-cart-bounce" : ""}>
+                <CartIcon className="h-5 w-5" />
+              </span>
 
-
-
-
-      {/* Right: Cart icon (centered in same fixed hit area) */}
-      <Link
-        href="/cart"
-        aria-label="Cart"
-        title="Cart"
-        className="relative flex h-10 w-10 items-center justify-center rounded-full text-black/70 hover:text-black hover:bg-black/5 transition"
-      >
-        <CartIcon className="h-5 w-5" />
-
-        {hydrated && totalItems > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-black text-white text-[11px] leading-[18px] text-center">
-            {totalItems}
-          </span>
-        )}
-      </Link>
-    </div>
-  </div>
-</div>
+              {hydrated && totalItems > 0 && (
+                <span
+                  className={[
+                    "absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-black text-white text-[11px] leading-[18px] text-center",
+                    cartPulse ? "bb-badge-pop" : "",
+                  ].join(" ")}
+                >
+                  {totalItems}
+                </span>
+              )}
+            </Link>
+          </div>
+        </div>
+      </div>
 
       {/* CONTENT */}
       <section className="mt-8 pb-12">
@@ -215,10 +282,7 @@ export default function AccessoriesPage() {
           {loading ? (
             <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm"
-                >
+                <div key={i} className="overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm">
                   <div className="h-52 bg-black/[0.06]" />
                   <div className="p-5">
                     <div className="h-4 w-2/3 rounded bg-black/[0.06]" />
@@ -230,9 +294,7 @@ export default function AccessoriesPage() {
             </div>
           ) : err ? (
             <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
-              <div className="text-sm font-semibold">
-                Couldn’t load accessories
-              </div>
+              <div className="text-sm font-semibold">Couldn’t load accessories</div>
               <p className="mt-2 text-sm text-black/70">{err}</p>
               <button
                 onClick={load}
@@ -247,52 +309,65 @@ export default function AccessoriesPage() {
             </div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="group overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm hover:shadow-md transition"
-                >
-                  <div className="relative w-full aspect-[4/3] bg-black/[0.03] overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={item.image_url ?? "/images/products/placeholder.jpg"}
-                      alt={item.name ?? "Product"}
-                      className="absolute inset-0 h-full w-full object-cover object-center"
-                      loading="lazy"
-                    />
-                  </div>
+              {items.map((item) => {
+                const isAdded = !!addedMap[item.id];
 
-                  <div className="p-5">
-                    <div className="text-base font-semibold tracking-tight">
-                      {item.name ?? "Untitled product"}
+                return (
+                  <div
+                    key={item.id}
+                    className={[
+                      "group overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm hover:shadow-md transition",
+                      isAdded ? "bb-added-glow" : "",
+                    ].join(" ")}
+                  >
+                    <div className="relative w-full aspect-[4/3] bg-black/[0.03] overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={item.image_url ?? "/images/products/placeholder.jpg"}
+                        alt={item.name ?? "Product"}
+                        className="absolute inset-0 h-full w-full object-cover object-center"
+                        loading="lazy"
+                      />
                     </div>
 
-                    <div className="mt-1 text-sm text-black/70">
-                      {formatter.format(item.price_ghs ?? 0)}
-                    </div>
+                    <div className="p-5">
+                      <div className="text-base font-semibold tracking-tight">{item.name ?? "Untitled product"}</div>
 
-                    <button
-                      onClick={() =>
-                        addItem({
-                          id: item.id,
-                          name: item.name ?? "Untitled product",
-                          price_ghs: item.price_ghs ?? 0,
-                          image_url: item.image_url,
-                        })
-                      }
-                      className="mt-5 inline-flex items-center rounded-full bg-black text-white px-4 py-2 text-sm font-medium hover:bg-black/90 transition"
-                    >
-                      Add to cart
-                    </button>
+                      <div className="mt-1 text-sm text-black/70">{formatter.format(item.price_ghs ?? 0)}</div>
+
+                      <button
+                        onClick={() => {
+                          addItem({
+                            id: item.id,
+                            name: item.name ?? "Untitled product",
+                            price_ghs: item.price_ghs ?? 0,
+                            image_url: item.image_url,
+                          });
+                          markAdded(item.id);
+                        }}
+                        className={[
+                          "mt-5 inline-flex items-center gap-2 rounded-full text-white px-4 py-2 text-sm font-medium transition",
+                          isAdded ? "bg-black/80" : "bg-black hover:bg-black/90",
+                        ].join(" ")}
+                      >
+                        {isAdded ? (
+                          <>
+                            <span>Added</span>
+                            <span aria-hidden="true">✓</span>
+                          </>
+                        ) : (
+                          "Add to cart"
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       </section>
 
-      {/* Footer */}
       <div className="-mt-2 overflow-hidden">
         <Footer />
       </div>

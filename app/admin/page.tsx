@@ -29,7 +29,7 @@ type ProductRow = {
   id: string;
   name: string | null;
   slug: string | null;
-  description: string | null;
+  // ✅ removed description from admin UI
   price_ghs: number | null;
   stock: number | null;
   category: string | null;
@@ -56,10 +56,18 @@ function money(n: number) {
 
 function getPublicUrl(path: string | null) {
   if (!path) return "";
-  const clean = path.trim().replace(/^\/+/, "");
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(clean);
+  const trimmed = path.trim();
+
+  // if you accidentally stored a full URL, just use it
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
+
+  // if you accidentally stored "product-images/xxx", strip bucket prefix
+  const clean = trimmed.replace(/^\/+/, "").replace(/^product-images\//, "");
+
+  const { data } = supabase.storage.from("product-images").getPublicUrl(clean);
   return data?.publicUrl || "";
 }
+
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("upload");
@@ -80,7 +88,6 @@ export default function AdminPage() {
   // Products
   const [products, setProducts] = useState<ProductRow[]>([]);
 
-  // Restore UI "logged in" state (real auth is cookie-based on the server)
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem(LS_KEY) : null;
     if (saved === "1") setAuthed(true);
@@ -103,17 +110,19 @@ export default function AdminPage() {
         .order("created_at", { ascending: false })
         .limit(1000),
 
-      // ✅ Products list for Database tab
+      // ✅ removed description from select
       supabase
         .from("products")
-        .select("id,name,slug,description,price_ghs,stock,category,is_active,image_path,created_at")
+        .select("id,name,slug,price_ghs,stock,category,is_active,image_path,created_at")
         .order("created_at", { ascending: false })
         .limit(1000),
     ]);
 
     if (pRes.error) setMsg(`Payments error: ${pRes.error.message}`);
     if (oRes.error)
-      setMsg((prev) => (prev ? `${prev} | Orders error: ${oRes.error!.message}` : `Orders error: ${oRes.error!.message}`));
+      setMsg((prev) =>
+        prev ? `${prev} | Orders error: ${oRes.error!.message}` : `Orders error: ${oRes.error!.message}`
+      );
     if (prRes.error)
       setMsg((prev) =>
         prev ? `${prev} | Products error: ${prRes.error!.message}` : `Products error: ${prRes.error!.message}`
@@ -162,7 +171,6 @@ export default function AdminPage() {
       .sort((a, b) => b.spent - a.spent);
   }, [orders]);
 
-  // ✅ SERVER LOGIN (sets httpOnly cookie)
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setMsg("");
@@ -171,8 +179,10 @@ export default function AdminPage() {
       const res = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include", // ✅ ADD THIS
         body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
+      
 
       const j = await res.json().catch(() => ({}));
 
@@ -189,14 +199,11 @@ export default function AdminPage() {
     }
   };
 
-  // ✅ SERVER LOGOUT (clears cookie)
   const logout = async () => {
     setMsg("");
     try {
-      await fetch("/api/admin/logout", { method: "POST" });
-    } catch {
-      // ignore
-    }
+      await fetch("/api/admin/logout", { method: "POST", credentials: "include" });
+    } catch {}
 
     localStorage.removeItem(LS_KEY);
     setAuthed(false);
@@ -208,7 +215,6 @@ export default function AdminPage() {
     setTab("upload");
   };
 
-  // LOGIN SCREEN
   if (!authed) {
     return (
       <main className="min-h-screen bg-white text-black flex items-center justify-center px-4">
@@ -243,11 +249,9 @@ export default function AdminPage() {
     );
   }
 
-  // DASHBOARD
   return (
     <main className="min-h-screen bg-white text-black">
       <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] min-h-screen">
-        {/* Sidebar */}
         <aside className="bg-black/5 border-r border-black/10 px-5 py-8 flex flex-col">
           <div className="mb-6">
             <h2 className="text-lg font-bold">BaeBe Boo Storefront</h2>
@@ -255,7 +259,6 @@ export default function AdminPage() {
             {msg && <p className="text-xs text-black/60 mt-3">{msg}</p>}
           </div>
 
-          {/* Tabs centered vertically */}
           <div className="flex-1 flex flex-col justify-center gap-2">
             <SideTab active={tab === "products"} onClick={() => setTab("products")}>
               Database
@@ -271,7 +274,6 @@ export default function AdminPage() {
             </SideTab>
           </div>
 
-          {/* ✅ Buttons pinned at bottom */}
           <div className="mt-6 pt-6 border-t border-black/10 space-y-2">
             <button
               onClick={loadData}
@@ -290,19 +292,13 @@ export default function AdminPage() {
           </div>
         </aside>
 
-        {/* Content */}
         <section className="px-6 py-10">
           <div className="max-w-6xl">
             <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
             <p className="text-sm text-black/60 mt-1">Manage products and review store activity.</p>
 
             <div className="mt-6">
-              {tab === "products" && (
-                <ProductsTab
-                  products={products}
-                  onChanged={loadData}
-                />
-              )}
+              {tab === "products" && <ProductsTab products={products} onChanged={loadData} />}
               {tab === "upload" && <UploadProductTab onSuccess={loadData} />}
               {tab === "payments" && <PaymentsTab monthly={monthly} payments={payments} />}
               {tab === "purchasers" && <PurchasersTab purchasers={purchasers} />}
@@ -439,7 +435,6 @@ function PurchasersTab({
   );
 }
 
-/** ✅ Database tab with edit + delete */
 function ProductsTab({ products, onChanged }: { products: ProductRow[]; onChanged: () => Promise<void> }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -459,8 +454,10 @@ function ProductsTab({ products, onChanged }: { products: ProductRow[]; onChange
       const res = await fetch("/api/admin/products", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include", // ✅ ADD THIS
         body: JSON.stringify({ id: p.id, patch }),
       });
+      
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || "Update failed");
       setMsg("✅ Updated");
@@ -478,7 +475,11 @@ function ProductsTab({ products, onChanged }: { products: ProductRow[]; onChange
     setMsg("");
     setBusyId(p.id);
     try {
-      const res = await fetch(`/api/admin/products?id=${encodeURIComponent(p.id)}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/products?id=${encodeURIComponent(p.id)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || "Delete failed");
       setMsg("✅ Deleted");
@@ -561,7 +562,6 @@ function ProductRowView({
 }) {
   const [name, setName] = useState(p.name ?? "");
   const [slug, setSlug] = useState(p.slug ?? "");
-  const [description, setDescription] = useState(p.description ?? "");
   const [price, setPrice] = useState<number>(Number(p.price_ghs ?? 0));
   const [stock, setStock] = useState<number>(Number(p.stock ?? 0));
   const [category, setCategory] = useState<string>(p.category ?? "clothes");
@@ -571,7 +571,6 @@ function ProductRowView({
     if (!isEditing) return;
     setName(p.name ?? "");
     setSlug(p.slug ?? "");
-    setDescription(p.description ?? "");
     setPrice(Number(p.price_ghs ?? 0));
     setStock(Number(p.stock ?? 0));
     setCategory(p.category ?? "clothes");
@@ -600,11 +599,6 @@ function ProductRowView({
           <div className="space-y-2 min-w-[260px]">
             <input className="w-full border border-black/15 rounded-lg px-2 py-1" value={name} onChange={(e) => setName(e.target.value)} />
             <input className="w-full border border-black/15 rounded-lg px-2 py-1" value={slug} onChange={(e) => setSlug(e.target.value)} />
-            <textarea
-              className="w-full border border-black/15 rounded-lg px-2 py-1 min-h-[70px]"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
           </div>
         )}
       </td>
@@ -682,7 +676,6 @@ function ProductRowView({
                 onSave({
                   name: name.trim(),
                   slug: slug.trim(),
-                  description: description.trim(),
                   price_ghs: price,
                   stock,
                   category,
@@ -706,7 +699,7 @@ function ProductRowView({
 function UploadProductTab({ onSuccess }: { onSuccess: () => Promise<void> }) {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
-  const [description, setDescription] = useState("");
+  // ✅ removed description from admin UI
   const [price, setPrice] = useState<number>(0);
   const [stock, setStock] = useState<number>(0);
   const [category, setCategory] = useState<string>("clothes");
@@ -715,6 +708,7 @@ function UploadProductTab({ onSuccess }: { onSuccess: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
+  // ✅ suggest category from name only now
   const suggestCategory = (text: string) => {
     const t = text.toLowerCase();
     if (t.includes("dress")) return "girl_dresses";
@@ -725,14 +719,13 @@ function UploadProductTab({ onSuccess }: { onSuccess: () => Promise<void> }) {
   };
 
   useEffect(() => {
-    setCategory(suggestCategory(`${name} ${description}`));
-  }, [name, description]);
+    setCategory(suggestCategory(name));
+  }, [name]);
 
   const upload = async () => {
     setMsg("");
     if (!name.trim()) return setMsg("Please enter a product name.");
     if (!slug.trim()) return setMsg("Please enter a slug (e.g. baby-onesie).");
-    if (!description.trim()) return setMsg("Please enter a description.");
     if (!file) return setMsg("Please choose an image.");
     if (!category) return setMsg("Please choose a category.");
 
@@ -742,13 +735,18 @@ function UploadProductTab({ onSuccess }: { onSuccess: () => Promise<void> }) {
       const fd = new FormData();
       fd.append("name", name.trim());
       fd.append("slug", slug.trim());
-      fd.append("description", description.trim());
+      // ✅ no description field
       fd.append("category", category);
       fd.append("price_ghs", String(price));
       fd.append("stock", String(stock));
       fd.append("file", file);
 
-      const res = await fetch("/api/admin/products", { method: "POST", body: fd });
+      const res = await fetch("/api/admin/products", {
+        method: "POST",
+        body: fd,
+        credentials: "include", // ✅ ADD THIS
+      });
+      
       const j = await res.json().catch(() => ({}));
 
       if (!res.ok) throw new Error(j?.error || "Upload failed");
@@ -756,7 +754,6 @@ function UploadProductTab({ onSuccess }: { onSuccess: () => Promise<void> }) {
       setMsg("✅ Product uploaded and added to store!");
       setName("");
       setSlug("");
-      setDescription("");
       setPrice(0);
       setStock(0);
       setFile(null);
@@ -830,26 +827,17 @@ function UploadProductTab({ onSuccess }: { onSuccess: () => Promise<void> }) {
           />
         </Field>
 
-        <Field label="Product image">
-          <input
-            className="w-full border border-black/15 rounded-xl px-3 py-2"
-            type="file"
-            accept="image/*"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-        </Field>
+              <Field label="Product image">
+        <input
+          className="w-full border border-black/15 rounded-xl px-3 py-2"
+          type="file"
+          accept="image/*"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        />
+      </Field>
       </div>
 
-      <div className="mt-4">
-        <Field label="Description">
-          <textarea
-            className="w-full border border-black/15 rounded-xl px-3 py-2 min-h-[120px]"
-            placeholder="Short description of the item..."
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </Field>
-      </div>
+      {/* ✅ description section removed */}
 
       <div className="mt-5 flex items-center gap-3">
         <button disabled={busy} onClick={upload} className="px-4 py-2 rounded-xl bg-black text-white disabled:opacity-60">

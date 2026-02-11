@@ -1,7 +1,7 @@
 // app/shop/clothes/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Footer from "@/components/Footer";
 import { supabase } from "@/lib/supabaseClient";
@@ -12,7 +12,7 @@ type Product = {
   name: string | null;
   price_ghs: number | null;
   category: string | null;
-  image_url: string | null; // store: "onesie.jpg" OR "clothes/onesie.jpg" OR full URL
+  image_url: string | null;
   created_at?: string | null;
   is_active?: boolean | null;
   stock?: number | null;
@@ -45,33 +45,21 @@ function isHttpUrl(v: string) {
   return v.startsWith("http://") || v.startsWith("https://");
 }
 
-/**
- * Build a public URL from Supabase Storage.
- * IMPORTANT: This does not depend on your DB containing the full URL.
- */
 function toPublicUrl(storagePath: string) {
   const cleanPath = storagePath
     .trim()
     .replace(/^\/+/, "")
-    .replace(new RegExp(`^${BUCKET}\/+`), ""); // if user saved "product-images/onesie.jpg"
+    .replace(new RegExp(`^${BUCKET}\/+`), "");
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(cleanPath);
   return data?.publicUrl || "";
 }
 
-/**
- * Resolve a product image:
- * - If DB has full URL -> use it
- * - Else treat DB as storage path -> convert to public URL
- */
 function resolveProductImage(image_url: string | null) {
   if (!image_url) return PLACEHOLDER;
-
   const raw = image_url.trim();
   if (!raw) return PLACEHOLDER;
-
   if (isHttpUrl(raw)) return raw;
-
   const pub = toPublicUrl(raw);
   return pub || PLACEHOLDER;
 }
@@ -85,6 +73,12 @@ export default function ClothesPage() {
 
   const titles = ["Boys Clothes Store", "Baebe Boo Storefront"] as const;
   const [titleIndex, setTitleIndex] = useState(0);
+
+  // ✅ UI micro-interactions
+  const [cartPulse, setCartPulse] = useState(false);
+  const [addedMap, setAddedMap] = useState<Record<string, boolean>>({});
+  const addedTimersRef = useRef<Record<string, number>>({});
+  const prevTotalRef = useRef<number>(0);
 
   const formatter = useMemo(
     () =>
@@ -117,6 +111,21 @@ export default function ClothesPage() {
     setItems((data ?? []) as Product[]);
     setLoading(false);
   }
+
+  // Cart pulse when count changes (and after hydration)
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const prev = prevTotalRef.current;
+    if (totalItems !== prev) {
+      setCartPulse(true);
+      const t = window.setTimeout(() => setCartPulse(false), 260);
+      prevTotalRef.current = totalItems;
+      return () => window.clearTimeout(t);
+    }
+
+    prevTotalRef.current = totalItems;
+  }, [totalItems, hydrated]);
 
   useEffect(() => {
     load();
@@ -166,9 +175,25 @@ export default function ClothesPage() {
     return () => {
       clearInterval(t);
       supabase.removeChannel(channel);
+
+      // clear any running timers for "Added"
+      Object.values(addedTimersRef.current).forEach((timerId) => window.clearTimeout(timerId));
+      addedTimersRef.current = {};
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function markAdded(productId: string) {
+    // clear previous timer if spam-clicked
+    const existing = addedTimersRef.current[productId];
+    if (existing) window.clearTimeout(existing);
+
+    setAddedMap((m) => ({ ...m, [productId]: true }));
+    addedTimersRef.current[productId] = window.setTimeout(() => {
+      setAddedMap((m) => ({ ...m, [productId]: false }));
+      delete addedTimersRef.current[productId];
+    }, 900);
+  }
 
   return (
     <main className="min-h-screen bg-white text-black">
@@ -185,6 +210,55 @@ export default function ClothesPage() {
         }
         .bb-title-anim {
           animation: bbFadeSlide 240ms ease-out;
+        }
+
+        /* ✅ cart + badge micro-animations */
+        @keyframes bbPop {
+          0% {
+            transform: scale(1);
+          }
+          40% {
+            transform: scale(1.22);
+          }
+          100% {
+            transform: scale(1);
+          }
+        }
+        @keyframes bbBounce {
+          0% {
+            transform: translateY(0);
+          }
+          35% {
+            transform: translateY(-2px);
+          }
+          70% {
+            transform: translateY(0);
+          }
+          100% {
+            transform: translateY(0);
+          }
+        }
+        .bb-badge-pop {
+          animation: bbPop 260ms ease-out;
+        }
+        .bb-cart-bounce {
+          animation: bbBounce 260ms ease-out;
+        }
+
+        /* ✅ item added highlight */
+        @keyframes bbGlow {
+          0% {
+            box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+          }
+          35% {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+          }
+          100% {
+            box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+          }
+        }
+        .bb-added-glow {
+          animation: bbGlow 900ms ease-out;
         }
       `}</style>
 
@@ -214,9 +288,18 @@ export default function ClothesPage() {
               title="Cart"
               className="relative flex h-10 w-10 items-center justify-center rounded-full text-black/70 transition hover:bg-black/5 hover:text-black"
             >
-              <CartIcon className="h-5 w-5" />
+              <span className={cartPulse ? "bb-cart-bounce" : ""}>
+                <CartIcon className="h-5 w-5" />
+              </span>
+
               {hydrated && totalItems > 0 && (
-                <span className="absolute -right-1 -top-1 h-[18px] min-w-[18px] rounded-full bg-black px-1 text-center text-[11px] leading-[18px] text-white">
+                <span
+                  className={[
+                    "absolute -right-1 -top-1 h-[18px] min-w-[18px] rounded-full bg-black px-1 text-center text-[11px] leading-[18px] text-white",
+                    cartPulse ? "bb-badge-pop" : "",
+                  ].join(" ")}
+                  aria-label={`${totalItems} items in cart`}
+                >
                   {totalItems}
                 </span>
               )}
@@ -261,15 +344,15 @@ export default function ClothesPage() {
             <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
               {items.map((item) => {
                 const imgSrc = resolveProductImage(item.image_url);
-
-                // ✅ debug once per item render
-                // open DevTools console to see it
-                console.log("Product:", item.name, "DB image_url:", item.image_url, "Resolved imgSrc:", imgSrc);
+                const isAdded = !!addedMap[item.id];
 
                 return (
                   <div
                     key={item.id}
-                    className="group overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm transition hover:shadow-md"
+                    className={[
+                      "group overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm transition hover:shadow-md",
+                      isAdded ? "bb-added-glow" : "",
+                    ].join(" ")}
                   >
                     <div className="relative w-full overflow-hidden bg-black/[0.03] aspect-[4/3]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -280,7 +363,6 @@ export default function ClothesPage() {
                         loading="lazy"
                         referrerPolicy="no-referrer"
                         onError={(e) => {
-                          console.log("❌ IMAGE FAILED TO LOAD:", imgSrc);
                           (e.currentTarget as HTMLImageElement).src = PLACEHOLDER;
                         }}
                       />
@@ -291,17 +373,28 @@ export default function ClothesPage() {
                       <div className="mt-1 text-sm text-black/70">{formatter.format(item.price_ghs ?? 0)}</div>
 
                       <button
-                        onClick={() =>
+                        onClick={() => {
                           addItem({
                             id: item.id,
                             name: item.name ?? "Untitled product",
                             price_ghs: item.price_ghs ?? 0,
-                            image_url: imgSrc, // store resolved URL in cart
-                          })
-                        }
-                        className="mt-5 inline-flex items-center rounded-full bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-black/90"
+                            image_url: imgSrc,
+                          });
+                          markAdded(item.id);
+                        }}
+                        className={[
+                          "mt-5 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white transition",
+                          isAdded ? "bg-black/80" : "bg-black hover:bg-black/90",
+                        ].join(" ")}
                       >
-                        Add to cart
+                        {isAdded ? (
+                          <>
+                            <span className="inline-block">Added</span>
+                            <span aria-hidden="true">✓</span>
+                          </>
+                        ) : (
+                          "Add to cart"
+                        )}
                       </button>
 
                       {/* tiny debug line (remove later) */}
