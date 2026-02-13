@@ -8,29 +8,40 @@ const navLinks = [
   { label: "Contact", href: "#contact" },
 ];
 
-export default function Navbar() {
-  const [scrolled, setScrolled] = useState(false);
+type NavbarProps = {
+  scrolled?: boolean;
+  titleOnScroll?: string;
+};
+
+export default function Navbar({
+  scrolled: scrolledProp,
+  titleOnScroll = "Baebe Boo Storefront",
+}: NavbarProps) {
+  const [internalScrolled, setInternalScrolled] = useState(false);
+  const scrolled = scrolledProp ?? internalScrolled;
+
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<string>("#categories");
 
   const desktopNavRef = useRef<HTMLDivElement>(null);
   const indicatorRef = useRef<HTMLDivElement>(null);
 
+  // ✅ Only attach scroll listener if parent did NOT provide scrolled
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 10);
+    if (scrolledProp !== undefined) return;
+
+    const onScroll = () => setInternalScrolled(window.scrollY > 10);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [scrolledProp]);
 
   const moveIndicator = () => {
     const nav = desktopNavRef.current;
     const indicator = indicatorRef.current;
     if (!nav || !indicator) return;
 
-    const activeEl = nav.querySelector<HTMLAnchorElement>(
-      `a[href="${active}"]`
-    );
+    const activeEl = nav.querySelector<HTMLAnchorElement>(`a[href="${active}"]`);
     if (!activeEl) return;
 
     const navRect = nav.getBoundingClientRect();
@@ -69,7 +80,7 @@ export default function Navbar() {
       ].join(" ")}
     >
       <nav className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-6 flex items-center justify-between">
-        {/* LEFT: Brand title appears on scroll (keeps center alignment intact) */}
+        {/* LEFT: Brand title appears on scroll */}
         <div className="w-10 sm:w-12 md:w-52">
           <span
             className={[
@@ -79,7 +90,7 @@ export default function Navbar() {
                 : "opacity-0 -translate-y-1 pointer-events-none",
             ].join(" ")}
           >
-            Baebe Boo Storefront
+            {titleOnScroll}
           </span>
         </div>
 

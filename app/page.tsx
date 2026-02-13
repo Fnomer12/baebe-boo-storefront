@@ -1,6 +1,7 @@
 // app/page.tsx
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
@@ -8,9 +9,19 @@ import Footer from "@/components/Footer";
 import HeroRotatingTitle from "@/components/HeroRotatingTitle";
 
 export default function Home() {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
     <main className="min-h-screen bg-white text-black">
-      <Navbar />
+      {/* ✅ pass scroll state to navbar */}
+      <Navbar scrolled={scrolled} titleOnScroll="Baebe Boo Storefront" />
 
       {/* Hero */}
       <section className="pt-24 sm:pt-28 md:pt-32">
@@ -114,7 +125,10 @@ export default function Home() {
                 </h2>
 
                 <p className="mt-3 text-black/70 leading-relaxed">
-                Baebe Boo is a modern baby essentials brand designed for parents who value quality, simplicity, and trust. We curate everyday essentials with care, ensuring each product meets high standards of comfort, safety, and practicality.
+                  Baebe Boo is a modern baby essentials brand designed for
+                  parents who value quality, simplicity, and trust. We curate
+                  everyday essentials with care, ensuring each product meets
+                  high standards of comfort, safety, and practicality.
                 </p>
 
                 <p className="mt-4 text-black/70 leading-relaxed">
