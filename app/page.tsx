@@ -1,4 +1,6 @@
 // app/page.tsx
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
@@ -13,6 +15,47 @@ export default function Home() {
       {/* Hero */}
       <section className="pt-24 sm:pt-28 md:pt-32">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          {/* ✅ Explore shop comes first */}
+          <div className="pb-10" id="categories">
+            <Link
+              href="/shop"
+              className="group relative block overflow-hidden rounded-3xl border border-black/10 shadow-sm hover:shadow-md transition"
+              aria-label="Go to shop"
+            >
+              <div className="relative h-[320px] sm:h-[380px] md:h-[520px]">
+                <video
+                  className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+                  src="/videos/baebeboo.mp4"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                />
+
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                <div className="pointer-events-none absolute inset-0 bg-black/10 group-hover:bg-black/0 transition" />
+
+                <div className="relative z-10 h-full flex items-end">
+                  <div className="p-5 sm:p-6 md:p-10">
+                    <h2 className="text-xl sm:text-2xl md:text-4xl font-semibold tracking-tight text-white">
+                      Shop the collection
+                    </h2>
+                    <p className="mt-2 max-w-xl text-xs sm:text-sm md:text-base text-white/80">
+                      Tap to browse our full range of baby essentials — designed
+                      with comfort, care, and simplicity in mind.
+                    </p>
+
+                    <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-white/90 group-hover:text-white transition">
+                      Explore <span className="text-lg">→</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          </div>
+
+          {/* ✅ Founder section below Explore shop */}
           <div className="grid gap-10 md:gap-12 md:grid-cols-2 items-center">
             {/* Left */}
             <div className="max-w-2xl">
@@ -59,49 +102,6 @@ export default function Home() {
           {/* Divider */}
           <div className="mt-10 sm:mt-12 border-t border-black/10" />
 
-          {/* VIDEO SECTION (clickable to /shop) */}
-          <section className="pt-8 sm:pt-10 pb-10" id="categories">
-            <Link
-              href="/shop"
-              className="group relative block overflow-hidden rounded-3xl border border-black/10 shadow-sm hover:shadow-md transition"
-              aria-label="Go to shop"
-            >
-              <div className="relative h-[320px] sm:h-[380px] md:h-[520px]">
-                {/* ✅ key fix: video must not capture clicks */}
-                <video
-                  className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-                  src="/videos/baebeboo.mp4"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  preload="metadata"
-                />
-
-                {/* ✅ overlays must not capture clicks */}
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                <div className="pointer-events-none absolute inset-0 bg-black/10 group-hover:bg-black/0 transition" />
-
-                {/* Content */}
-                <div className="relative z-10 h-full flex items-end">
-                  <div className="p-5 sm:p-6 md:p-10">
-                    <h2 className="text-xl sm:text-2xl md:text-4xl font-semibold tracking-tight text-white">
-                      Shop the collection
-                    </h2>
-                    <p className="mt-2 max-w-xl text-xs sm:text-sm md:text-base text-white/80">
-                      Tap to browse our full range of baby essentials — designed
-                      with comfort, care, and simplicity in mind.
-                    </p>
-
-                    <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-white/90 group-hover:text-white transition">
-                      Explore <span className="text-lg">→</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </Link>
-          </section>
-
           {/* About */}
           <section
             id="about"
@@ -114,10 +114,7 @@ export default function Home() {
                 </h2>
 
                 <p className="mt-3 text-black/70 leading-relaxed">
-                  Baebe Boo is a modern baby essentials store built for parents
-                  who value simplicity, quality, and trusted products. We focus
-                  on everyday items you actually need — carefully selected for
-                  comfort, safety, and practicality.
+                Baebe Boo is a modern baby essentials brand designed for parents who value quality, simplicity, and trust. We curate everyday essentials with care, ensuring each product meets high standards of comfort, safety, and practicality.
                 </p>
 
                 <p className="mt-4 text-black/70 leading-relaxed">
@@ -126,7 +123,6 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* About highlights card */}
               <div className="rounded-3xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
                 <div className="text-sm font-semibold">What we prioritize</div>
 

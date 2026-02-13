@@ -69,8 +69,19 @@ export default function Navbar() {
       ].join(" ")}
     >
       <nav className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-6 flex items-center justify-between">
-        {/* LEFT spacer (keeps center alignment) */}
-        <div className="w-10 sm:w-12" aria-hidden />
+        {/* LEFT: Brand title appears on scroll (keeps center alignment intact) */}
+        <div className="w-10 sm:w-12 md:w-52">
+          <span
+            className={[
+              "hidden md:inline-block text-sm font-semibold tracking-tight transition-all duration-300",
+              scrolled
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 -translate-y-1 pointer-events-none",
+            ].join(" ")}
+          >
+            Baebe Boo Storefront
+          </span>
+        </div>
 
         {/* Desktop nav (centered) */}
         <div
