@@ -1,7 +1,6 @@
 // app/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
@@ -9,19 +8,9 @@ import Footer from "@/components/Footer";
 import HeroRotatingTitle from "@/components/HeroRotatingTitle";
 
 export default function Home() {
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 10);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
     <main className="min-h-screen bg-white text-black">
-      {/* ✅ pass scroll state to navbar */}
-      <Navbar scrolled={scrolled} titleOnScroll="Baebe Boo Storefront" />
+      <Navbar />
 
       {/* Hero */}
       <section className="pt-24 sm:pt-28 md:pt-32">
@@ -174,6 +163,9 @@ export default function Home() {
               </div>
             </div>
           </section>
+
+          {/* OPTIONAL: add this so Contact works (since navbar links to #contact) */}
+          
         </div>
       </section>
 

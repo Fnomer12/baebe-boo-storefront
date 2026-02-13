@@ -1,6 +1,8 @@
+// components/Navbar.tsx
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import Link from "next/link";
 
 const navLinks = [
   { label: "Shop", href: "#categories" },
@@ -8,40 +10,29 @@ const navLinks = [
   { label: "Contact", href: "#contact" },
 ];
 
-type NavbarProps = {
-  scrolled?: boolean;
-  titleOnScroll?: string;
-};
-
-export default function Navbar({
-  scrolled: scrolledProp,
-  titleOnScroll = "Baebe Boo Storefront",
-}: NavbarProps) {
-  const [internalScrolled, setInternalScrolled] = useState(false);
-  const scrolled = scrolledProp ?? internalScrolled;
-
+export default function Navbar() {
+  const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<string>("#categories");
 
   const desktopNavRef = useRef<HTMLDivElement>(null);
   const indicatorRef = useRef<HTMLDivElement>(null);
 
-  // ✅ Only attach scroll listener if parent did NOT provide scrolled
   useEffect(() => {
-    if (scrolledProp !== undefined) return;
-
-    const onScroll = () => setInternalScrolled(window.scrollY > 10);
+    const onScroll = () => setScrolled(window.scrollY > 10);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, [scrolledProp]);
+  }, []);
 
   const moveIndicator = () => {
     const nav = desktopNavRef.current;
     const indicator = indicatorRef.current;
     if (!nav || !indicator) return;
 
-    const activeEl = nav.querySelector<HTMLAnchorElement>(`a[href="${active}"]`);
+    const activeEl = nav.querySelector<HTMLAnchorElement>(
+      `a[href="${active}"]`
+    );
     if (!activeEl) return;
 
     const navRect = nav.getBoundingClientRect();
@@ -80,18 +71,20 @@ export default function Navbar({
       ].join(" ")}
     >
       <nav className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-6 flex items-center justify-between">
-        {/* LEFT: Brand title appears on scroll */}
-        <div className="w-10 sm:w-12 md:w-52">
-          <span
+        {/* ✅ LEFT: Brand title appears on scroll (ALL devices) */}
+        <div className="flex items-center min-w-0">
+          <Link
+            href="/"
             className={[
-              "hidden md:inline-block text-sm font-semibold tracking-tight transition-all duration-300",
+              "text-sm sm:text-base font-semibold tracking-tight transition-all duration-300",
+              "truncate max-w-[65vw] sm:max-w-[55vw] md:max-w-[320px]",
               scrolled
                 ? "opacity-100 translate-y-0"
                 : "opacity-0 -translate-y-1 pointer-events-none",
             ].join(" ")}
           >
-            {titleOnScroll}
-          </span>
+            Baebe Boo Storefront
+          </Link>
         </div>
 
         {/* Desktop nav (centered) */}
